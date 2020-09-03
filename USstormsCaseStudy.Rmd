@@ -1,0 +1,200 @@
+---
+title: 'Case Study: Impact of Storms (and other severe weather events)'
+author: "Shivangi"
+date: "8/1/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Synopsis
+The basic goal of this study is to explore the NOAA Storm Database and answer some basic questions about severe weather events.  
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+
+## Data Processing
+
+### Download the file from the web.
+
+```{r data}
+setwd("C:/Users/comp/Documents/CourseraR/Reproducible Research/Case Study week 4")
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+if(!file.exists("repdata_data_StormData.csv")){
+download.file(url,destfile="repdata_data_StormData.csv")
+}
+```
+The zip file  containing dataset is downloaded from the link provided.  
+Now we need to unzip the file into our working directory.  
+
+```{r}
+
+data <- read.csv(bzfile("repdata_data_StormData.csv.bz2"),header = TRUE)
+```
+
+The storm data is loaded into the variable **data**.  
+
+### Examining the data.
+```{r}
+dim(data)
+```
+```{r}
+names(data)
+```
+We have the dimensions and names of columns for the storm data. We need to extract those variables that will be suitable fro this analysis which are health and economic variables along with event types.
+
+### Extracting variables of interest for analysis of weather impact on health and economy
+
+From a list of variables in storm.data, these are columns of interest:  
+
+Health variables:  
+* FATALITIES: approx. number of deaths  
+* INJURIES: approx. number of injuries  
+  
+Economic variables:  
+  
+PROPDMG: approx. property damags  
+PROPDMGEXP: the units for property damage value  
+CROPDMG: approx. crop damages  
+CROPDMGEXP: the units for crop damage value    
+
+Events - target variable:  
+  
+EVTYPE: weather event (Tornados, Wind, Snow, Flood, etc..)  
+  
+Loading the appropriate libraries:
+```{r ,results="hide"}
+library(dplyr)
+```
+Extract variables of interest from original data set:  
+
+```{r}
+vars <- data %>% select(EVTYPE, FATALITIES,INJURIES,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP)
+head(vars)
+```
+The selected columns are in the variable **vars**.  
+
+### Checking for missing values
+```{r}
+colSums(is.na(vars))
+```
+Here, we can observe that there  are no missing values in any of the columns.  
+  
+### Transforming extracted variables
+Listing the first 10 event types that most appear in the data:  
+```{r}
+sort(table(vars$EVTYPE), decreasing = TRUE)[1:10]
+```
+We will group events like TUNDERSTORM WIND, TUNDERSTORM WINDS, HIGH WIND, etc. by containing the keyword ‘WIND’ as one event WIND. And we will transform other types of events in a similar way. New variable EVENTS is the transform variable of EVTYPE that have 10 different types of events: HEAT, FLOOD, etc., and type OTHER for events in which name the keyword is not found.
+```{r}
+vars$EVENT <- "OTHERS"
+vars$EVENT[grep("TORNADO",vars$EVTYPE)]<-"TORNADO"
+vars$EVENT[grep("WIND",vars$EVTYPE)]<-"WIND"
+vars$EVENT[grep("FLOOD",vars$EVTYPE)]<-"FLOOD"
+vars$EVENT[grep("STORM",vars$EVTYPE)]<-"STORM"
+vars$EVENT[grep("RAIN",vars$EVTYPE)]<-"RAIN"
+vars$EVENT[grep("SNOW",vars$EVTYPE)]<-"SNOW"
+vars$EVENT[grep("HAIL",vars$EVTYPE)]<-"HAIL"
+vars$EVENT[grep("HEAT",vars$EVTYPE)]<-"HEAT"
+vars$EVENT[grep("LIGHTNING",vars$EVTYPE)]<-"LIGHTNING"
+vars$EVENT[grep("WINTER",vars$EVTYPE)]<-"WINTER"
+vars$EVENT[grep("FIRE",vars$EVTYPE)]<-"FIRE"
+vars$EVENT[grep("DROUGHT",vars$EVTYPE)]<-"DROUGHT"
+vars$EVENT[grep("FOG",vars$EVTYPE)]<-"FOG"
+
+##  MAKING A TABLE OF EVENTS TO SEE THEIR RECURRENCE
+sort(table(vars$EVENT),decreasing = TRUE)
+```
+
+Visualising the table for property damage expenses and crop damage expenses.
+```{r}
+sort(table(vars$PROPDMGEXP),decreasing=T)[1:10]
+sort(table(vars$CROPDMGEXP),decreasing=T)[1:10]
+```
+
+
+There is some mess in units, so we transform those variables in one unit (dollar) variable by the following rule:  
+* K or k: thousand dollars (10^3)  
+* M or m: million dollars (10^6)  
+* B or b: billion dollars (10^9)  
+* the rest would be consider as dollars  
+  
+New variable(s) is product of value of damage and dollar unit.  
+
+
+
+```{r}
+vars$PROPDMGEXP[!grepl("K|M|B",vars$PROPDMGEXP)] <- 0
+vars$PROPDMGEXP[grep("K", vars$PROPDMGEXP, ignore.case = TRUE)] <- "3"
+vars$PROPDMGEXP[grep("M", vars$PROPDMGEXP, ignore.case = TRUE)] <- "6"
+vars$PROPDMGEXP[grep("B", vars$PROPDMGEXP, ignore.case = TRUE)] <- "9"
+class(vars$PROPDMGEXP)
+```
+```{r}
+vars$PROPDMGEXP <- as.numeric(vars$PROPDMGEXP)
+vars$property_damage <- vars$PROPDMG * 10^vars$PROPDMGEXP
+```
+We found the property damage expenses and stored the result in the column **property_damange**.  
+Doing the same for to find the crop damage expenses.
+```{r}
+vars$CROPDMGEXP[!grepl("K|M|B",vars$CROPDMGEXP)] <- 0
+vars$CROPDMGEXP[grep("K", vars$CROPDMGEXP, ignore.case = TRUE)] <- "3"
+vars$CROPDMGEXP[grep("M", vars$CROPDMGEXP, ignore.case = TRUE)] <- "6"
+vars$CROPDMGEXP[grep("B", vars$CROPDMGEXP, ignore.case = TRUE)] <- "9"
+class(vars$CROPDMGEXP)
+```
+```{r}
+vars$CROPDMGEXP <- as.numeric(vars$CROPDMGEXP)
+vars$crop_damage <- vars$CROPDMG * 10^vars$CROPDMGEXP
+```
+
+```{r}
+## printing first 10 values  of property_damage
+sort(table(vars$property_damage),decreasing = TRUE)[1:10]
+## printing first 10 value of crop_damage
+sort(table(vars$crop_damage),decreasing = TRUE)[1:10]
+```
+## DATA ANALYSIS
+
+### QUESTION STATEMENT:1
+Across the United States, which types of events (as indicated in the \color{red}{\verb|EVTYPE|}EVTYPE variable) are most harmful with respect to population health?
+
+```{r}
+final_data <- vars %>% select(-c(EVTYPE))
+ans_1 <- final_data %>% select(EVENT,FATALITIES,INJURIES) %>% group_by(EVENT) %>% summarize(FATAL_CASES= sum(FATALITIES),INJURED_CASES=sum(INJURIES), TOTAL_CASES=sum(FATALITIES+INJURIES))
+ans_1
+```
+
+Exploratory Analysis of population health with respect  to events.
+```{r}
+library(ggplot2)
+ans_1plot <- qplot(1:14,TOTAL_CASES,data=ans_1,col=EVENT)+labs(x="EVENTS",y="TOTAL CASES REPORTED")
+print(ans_1plot)
+```
+Hence, it can be observed that TORNADO events are most harmful to population health.
+
+### QUESTION STATEMENT: 2
+Across the United States, which types of events have the greatest economic consequences?  
+```{r}
+ans_2 <- final_data %>% select(EVENT,property_damage,crop_damage) %>% group_by(EVENT) %>% summarize(property_expenses= sum(property_damage),crop_expenses=sum(crop_damage), TOTAL_DAMAGE=sum(property_expenses+crop_expenses))
+ans_2
+```
+Exploratory data analysis of events with respect to economic consequences.
+```{r}
+ans_2plot <- qplot(1:14,TOTAL_DAMAGE,data=ans_2,col=EVENT)+labs(x="EVENT",y="TOTAL ECONOMIC DAMAGE (IN $)")
+print(ans_2plot)
+```
+
+Hence, it can be observed that FLOOD events have the greatest economic consequences.
+
+## RESULTS
+
+### ANSWER STATEMENT: 1
+The most harmful weather event for health (in number of total fatalites and injuries) is, by far, a tornado.
+
+### ANSWER STATEMENT: 2
+The most devastating weather event with the greatest economic cosequences (to property and crops) is a flood.
